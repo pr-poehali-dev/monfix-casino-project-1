@@ -2,14 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
+import { gameAPI, type User } from "@/lib/api";
+import { soundManager } from "@/lib/sounds";
 
 interface CrashGameProps {
-  balance: number;
-  setBalance: (balance: number) => void;
+  user: User;
+  setUser: (user: User) => void;
 }
 
-const CrashGame = ({ balance, setBalance }: CrashGameProps) => {
+const CrashGame = ({ user, setUser }: CrashGameProps) => {
   const [betAmount, setBetAmount] = useState(10);
   const [multiplier, setMultiplier] = useState(1.00);
   const [isPlaying, setIsPlaying] = useState(false);
