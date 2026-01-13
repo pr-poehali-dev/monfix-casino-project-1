@@ -3,14 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
+import { gameAPI, type User } from "@/lib/api";
+import { soundManager } from "@/lib/sounds";
 
 interface DiceGameProps {
-  balance: number;
-  setBalance: (balance: number) => void;
+  user: User;
+  setUser: (user: User) => void;
 }
 
-const DiceGame = ({ balance, setBalance }: DiceGameProps) => {
+const DiceGame = ({ user, setUser }: DiceGameProps) => {
   const [betAmount, setBetAmount] = useState(10);
   const [chance, setChance] = useState(50);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
@@ -19,25 +22,38 @@ const DiceGame = ({ balance, setBalance }: DiceGameProps) => {
 
   const multiplier = (100 / chance * 0.98).toFixed(2);
 
-  const rollDice = () => {
-    if (betAmount > balance || betAmount <= 0) return;
+  const rollDice = async () => {
+    if (betAmount > user.balance || betAmount <= 0) return;
 
     setIsRolling(true);
-    setBalance(balance - betAmount);
+    soundManager.play('bet');
 
-    setTimeout(() => {
-      const roll = Math.floor(Math.random() * 100) + 1;
-      const win = roll <= chance;
+    try {
+      const newBalance = await gameAPI.placeBet(user.id, betAmount);
+      setUser({ ...user, balance: newBalance });
 
-      setLastRoll(roll);
-      setIsWin(win);
+      setTimeout(async () => {
+        const roll = Math.floor(Math.random() * 100) + 1;
+        const win = roll <= chance;
+
+        setLastRoll(roll);
+        setIsWin(win);
+        setIsRolling(false);
+
+        if (win) {
+          soundManager.play('win');
+          const result = await gameAPI.finishGame(user.id, 'dice', betAmount, parseFloat(multiplier), true);
+          setUser({ ...user, balance: result.balance });
+          toast.success(`Выигрыш: $${result.payout.toFixed(2)}`);
+        } else {
+          soundManager.play('lose');
+          await gameAPI.finishGame(user.id, 'dice', betAmount, 0, false);
+        }
+      }, 500);
+    } catch (error) {
       setIsRolling(false);
-
-      if (win) {
-        const winAmount = betAmount * parseFloat(multiplier);
-        setBalance(balance - betAmount + winAmount);
-      }
-    }, 500);
+      toast.error(error instanceof Error ? error.message : 'Ошибка ставки');
+    }
   };
 
   return (
@@ -149,7 +165,7 @@ const DiceGame = ({ balance, setBalance }: DiceGameProps) => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => setBetAmount(Math.min(balance, betAmount * 3))}
+              onClick={() => setBetAmount(Math.min(user.balance, betAmount * 3))}
               disabled={isRolling}
             >
               3x
@@ -158,7 +174,7 @@ const DiceGame = ({ balance, setBalance }: DiceGameProps) => {
 
           <Button
             onClick={rollDice}
-            disabled={betAmount > balance || betAmount <= 0 || isRolling}
+            disabled={betAmount > user.balance || betAmount <= 0 || isRolling}
             className="w-full h-14 text-lg font-bold glow-blue bg-secondary hover:bg-secondary/90"
           >
             <Icon name="Dices" size={20} className="mr-2" />
