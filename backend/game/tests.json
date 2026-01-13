@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "name": "Get user balance",
+      "method": "GET",
+      "path": "/?user_id=1",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "balance": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Place bet",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "place_bet",
+        "user_id": 1,
+        "bet_amount": 10
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "balance": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
