@@ -3,14 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
+import { gameAPI, type User } from "@/lib/api";
+import { soundManager } from "@/lib/sounds";
 
 interface MineFieldGameProps {
-  balance: number;
-  setBalance: (balance: number) => void;
+  user: User;
+  setUser: (user: User) => void;
 }
 
-const MineFieldGame = ({ balance, setBalance }: MineFieldGameProps) => {
+const MineFieldGame = ({ user, setUser }: MineFieldGameProps) => {
   const [betAmount, setBetAmount] = useState(10);
   const [minesCount, setMinesCount] = useState(3);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -31,24 +34,31 @@ const MineFieldGame = ({ balance, setBalance }: MineFieldGameProps) => {
     return multi * 0.96;
   };
 
-  const startGame = () => {
-    if (betAmount > balance || betAmount <= 0) return;
+  const startGame = async () => {
+    if (betAmount > user.balance || betAmount <= 0) return;
 
-    setBalance(balance - betAmount);
+    soundManager.play('bet');
+
+    try {
+      const newBalance = await gameAPI.placeBet(user.id, betAmount);
+      setUser({ ...user, balance: newBalance });
     
-    const newMines = new Set<number>();
-    while (newMines.size < minesCount) {
-      newMines.add(Math.floor(Math.random() * gridSize));
+      const newMines = new Set<number>();
+      while (newMines.size < minesCount) {
+        newMines.add(Math.floor(Math.random() * gridSize));
+      }
+      
+      setMines(newMines);
+      setRevealed(new Set());
+      setIsPlaying(true);
+      setGameOver(false);
+      setCurrentMultiplier(1.00);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Ошибка ставки');
     }
-    
-    setMines(newMines);
-    setRevealed(new Set());
-    setIsPlaying(true);
-    setGameOver(false);
-    setCurrentMultiplier(1.00);
   };
 
-  const revealCell = (index: number) => {
+  const revealCell = async (index: number) => {
     if (!isPlaying || gameOver || revealed.has(index)) return;
 
     const newRevealed = new Set(revealed);
@@ -58,19 +68,29 @@ const MineFieldGame = ({ balance, setBalance }: MineFieldGameProps) => {
     if (mines.has(index)) {
       setGameOver(true);
       setIsPlaying(false);
+      soundManager.play('lose');
+      await gameAPI.finishGame(user.id, 'minefield', betAmount, currentMultiplier, false);
     } else {
+      soundManager.play('click');
       const newMulti = calculateMultiplier(newRevealed.size);
       setCurrentMultiplier(newMulti);
     }
   };
 
-  const cashOut = () => {
+  const cashOut = async () => {
     if (!isPlaying || gameOver || revealed.size === 0) return;
 
-    const winAmount = betAmount * currentMultiplier;
-    setBalance(balance + winAmount);
-    setGameOver(true);
-    setIsPlaying(false);
+    soundManager.play('cashout');
+
+    try {
+      const result = await gameAPI.finishGame(user.id, 'minefield', betAmount, currentMultiplier, true);
+      setUser({ ...user, balance: result.balance });
+      toast.success(`Выигрыш: $${result.payout.toFixed(2)}`);
+      setGameOver(true);
+      setIsPlaying(false);
+    } catch (error) {
+      toast.error('Ошибка завершения игры');
+    }
   };
 
   return (
@@ -177,7 +197,7 @@ const MineFieldGame = ({ balance, setBalance }: MineFieldGameProps) => {
           {!isPlaying ? (
             <Button
               onClick={startGame}
-              disabled={betAmount > balance || betAmount <= 0}
+              disabled={betAmount > user.balance || betAmount <= 0}
               className="w-full h-14 text-lg font-bold glow-green bg-accent hover:bg-accent/90"
             >
               <Icon name="Play" size={20} className="mr-2" />
