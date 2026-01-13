@@ -141,7 +141,7 @@ const CrashGame = ({ user, setUser }: CrashGameProps) => {
           {!isBetPlaced ? (
             <Button
               onClick={startGame}
-              disabled={betAmount > balance || betAmount <= 0}
+              disabled={betAmount > user.balance || betAmount <= 0}
               className="w-full h-14 text-lg font-bold glow-purple bg-primary hover:bg-primary/90"
             >
               <Icon name="Play" size={20} className="mr-2" />
